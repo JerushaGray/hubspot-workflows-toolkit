@@ -129,7 +129,9 @@ definition before trusting what a branch targets.
    links; follow GOTO merges and loops; list every terminal.
 4. **Translate ids to labels**: `content_id` to email name; `listId` to list name
    **and its real filter**; action id to branch name. Now every statement reads
-   in plain terms.
+   in plain terms. `hsflow crosswalk` resolves the names (and list size) for you;
+   reading the actual filter definition, so a branch named "Paid" isn't trusted at
+   face value, stays a manual step.
 5. **Walk the flow** and check the recurring failure patterns: branch fallback
    coverage, branch order, property set/reset symmetry on every exit (goal exits
    skip terminal resets), send-then-stamp consistency, enrollment-audience truth,
@@ -138,6 +140,8 @@ definition before trusting what a branch targets.
    inferences, and confirm impact (a stale flag nothing reads is hygiene, not a
    live bug) before rating severity.
 
-`hsflow` automates steps 2 to 4 (`analyze` covers decoding and the graph;
-`crosswalk` resolves ids to labels) and the structural half of step 5; the rest
-is judgment applied to what it surfaces.
+`hsflow` covers the mechanical parts: `analyze` handles step 2 (decode), step 3
+(the graph, with `--mermaid` to draw it), and the structural half of step 5
+(branch-coverage and graph-integrity checks); `crosswalk` handles the
+name-resolution half of step 4. Reading the actual list filters, and the
+judgment in steps 5 and 6, stay with you.
