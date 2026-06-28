@@ -35,7 +35,13 @@ def _save_json(data: dict, path: str) -> None:
 
 
 def _cmd_analyze(args) -> int:
-    report = build_report(_load_json(args.path))
+    flow = _load_json(args.path)
+    if args.mermaid:
+        from .mermaid import to_mermaid
+
+        print(to_mermaid(flow))
+        return 0
+    report = build_report(flow)
     if args.json:
         print(json.dumps(dataclasses.asdict(report), indent=2))
     else:
@@ -95,6 +101,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_analyze = sub.add_parser("analyze", help="analyze a saved flow JSON for structural defects")
     p_analyze.add_argument("path", help="path to a flow definition JSON")
     p_analyze.add_argument("--json", action="store_true", help="emit the report as JSON")
+    p_analyze.add_argument("--mermaid", action="store_true",
+                           help="emit a Mermaid flowchart of the action graph")
     p_analyze.set_defaults(func=_cmd_analyze)
 
     p_decode = sub.add_parser("decode", help="explain an action type id (e.g. 0-4)")

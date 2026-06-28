@@ -12,10 +12,57 @@ is pure and offline, so you can audit a saved flow JSON with no credentials.
 > (workflow logic, deliverability, and A/B-test resolution). Every example in
 > this repo uses **synthetic** data, with no portal ids, contacts, or real assets.
 
+[![CI](https://github.com/JerushaGray/hubspot-workflows-toolkit/actions/workflows/ci.yml/badge.svg)](https://github.com/JerushaGray/hubspot-workflows-toolkit/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
+
+## The action graph, made visible
+
+`hsflow analyze examples/sample_flow.json --mermaid` renders the flow as a
+diagram with the defects highlighted. This is the bundled synthetic sample:
+
+```mermaid
+flowchart TD
+  n1["1: SET_PROPERTY in_welcome_nurture"]
+  n2["2: DELAY 1 day"]
+  n3["3: SEND_EMAIL #100001"]
+  n4["4: SET_PROPERTY last_email_sent_date"]
+  n5["5: BRANCH"]
+  n6["6: SEND_EMAIL #100002"]
+  n7["7: SEND_EMAIL #100003"]
+  n8["8: BRANCH"]
+  n9["9: SEND_EMAIL #100004"]
+  n10["10: DELAY 3 days"]
+  n11["11: SEND_EMAIL #100005"]
+  n9999["9999 (missing)"]
+  n1 --> n2
+  n2 --> n3
+  n3 --> n4
+  n4 --> n5
+  n5 --> n6
+  n5 --> n7
+  n6 -. GOTO .-> n8
+  n7 --> n8
+  n8 --> n9
+  n8 --> n10
+  n10 --> n9999
+  n11 --> n9
+  classDef dangling fill:#ffd6d6,stroke:#d33333,color:#7a0000;
+  classDef orphan fill:#ffe3c2,stroke:#e08a00,color:#7a4a00;
+  classDef nodefault fill:#fff3b0,stroke:#c9a800,color:#6b5b00;
+  classDef start fill:#d7f3d7,stroke:#2c9c2c,color:#0c5c0c;
+  class n9999 dangling;
+  class n11 orphan;
+  class n8 nodefault;
+  class n1 start;
+```
+
+Legend: **red** = a dangling link (points at a missing action), **orange** = an
+orphan (unreachable from the start), **yellow** = a branch with no default,
+**green** = the start. Dashed arrows are GOTO edges. The same defects come out of
+plain `hsflow analyze` as text (see Quickstart below).
 
 ## Why it exists
 
@@ -52,7 +99,7 @@ error log simply **isn't in the public API** (see [docs](docs/workflows-v4-refer
 ## Install
 
 ```bash
-git clone https://github.com/jerushagray/hubspot-workflows-toolkit.git
+git clone https://github.com/JerushaGray/hubspot-workflows-toolkit.git
 cd hubspot-workflows-toolkit
 pip install -e .          # installs the `hsflow` command + the requests dep
 ```
@@ -174,7 +221,7 @@ client or network access.
 
 | Command | Auth | Description |
 | --- | --- | --- |
-| `hsflow analyze <flow.json> [--json]` | none | Audit a saved flow definition |
+| `hsflow analyze <flow.json> [--json] [--mermaid]` | none | Audit a flow, or render it as a Mermaid graph |
 | `hsflow decode <actionTypeId>` | none | Explain an action type id (e.g. `0-4`) |
 | `hsflow crosswalk <flow.json> [--md]` | token | Resolve a flow's email/list/branch ids to labels |
 | `hsflow pull-flow <id> [--out F]` | token | `GET /automation/v4/flows/{id}` to a file |

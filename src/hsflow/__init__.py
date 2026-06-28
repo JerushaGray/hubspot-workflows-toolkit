@@ -18,6 +18,7 @@ from .client import (
     load_token,
 )
 from .crosswalk import Crosswalk, build_crosswalk, format_crosswalk
+from .mermaid import to_mermaid
 from .models import (
     ACTION_TYPES,
     action_type_description,
@@ -39,6 +40,7 @@ __all__ = [
     "build_crosswalk",
     "format_crosswalk",
     "Crosswalk",
+    "to_mermaid",
     "ACTION_TYPES",
     "action_type_label",
     "action_type_description",
