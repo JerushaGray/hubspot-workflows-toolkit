@@ -7,6 +7,7 @@ and surface the structural defects the HubSpot UI hides behind its canvas:
   * orphan actions          - a defined action is unreachable from the start
   * branches with no default - potential silent drop-off (verify it partitions)
   * GOTO edges              - merges/loops to follow and confirm they terminate
+  * a broken start          - startActionId missing or not a defined action
 
 Why this exists: action ids (1, 8, 137, ...) are internal and never shown in
 the editor, so a broken link or an unreachable step is invisible there. Auditing
@@ -133,7 +134,8 @@ def build_report(flow: dict) -> FlowReport:
     for action in actions:
         aid = str(action.get("actionId"))
         kind = action_kind(action)
-        type_counts[action_type_label(kind)] = type_counts.get(action_type_label(kind), 0) + 1
+        label = action_type_label(kind)
+        type_counts[label] = type_counts.get(label, 0) + 1
 
         out = list(_edges(action))
         adjacency[aid] = [target for _, target in out]
@@ -167,6 +169,8 @@ def build_report(flow: dict) -> FlowReport:
                 }
             )
         elif kind == ACTION_TYPE_SEND_EMAIL:
+            # Not deduped: this counts sends, so an email reused across steps
+            # appears once per send. (crosswalk dedupes before it fetches names.)
             cid = (action.get("fields") or {}).get("content_id")
             if cid is not None:
                 content_ids.append(str(cid))
@@ -177,9 +181,21 @@ def build_report(flow: dict) -> FlowReport:
         key=_int_key,
     )
 
+    # A flow with actions must have a start action that actually exists. If it
+    # does not, reachability (and therefore orphan detection) is meaningless, so
+    # we report the broken entry point instead of flagging every action as dead.
+    start_ok = start is not None and start in defined_set
+    start_problem = None
+    if actions and not start_ok:
+        start_problem = (
+            f"startActionId {start} is not a defined action (broken entry point)."
+            if start is not None
+            else "flow has actions but no startActionId (no entry point)."
+        )
+
     # Reachability from the start action: the authoritative orphan check.
     reachable: set = set()
-    if start is not None:
+    if start_ok:
         stack = [start]
         while stack:
             node = stack.pop()
@@ -190,10 +206,14 @@ def build_report(flow: dict) -> FlowReport:
                 if target in defined_set and target not in reachable:
                     stack.append(target)
 
-    orphans = sorted(defined_set - reachable, key=_int_key) if start is not None else []
+    # Orphans only make sense relative to a valid start; suppress the flood when
+    # the start itself is broken (start_problem already names the root cause).
+    orphans = sorted(defined_set - reachable, key=_int_key) if start_ok else []
     dangling = sorted(referenced - defined_set, key=_int_key)
 
     findings: List[Finding] = []
+    if start_problem:
+        findings.append(Finding(SEVERITY_ERROR, "START_NOT_FOUND", start_problem, None))
     for missing in dangling:
         for src in sorted((aid for aid, t in adjacency.items() if missing in t), key=_int_key):
             findings.append(

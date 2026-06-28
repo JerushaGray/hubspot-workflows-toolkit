@@ -127,6 +127,38 @@ def test_format_report_renders_summary_and_findings():
     assert "DANGLING_LINK [action 10]" in text
 
 
+def test_broken_start_reference_is_flagged_not_an_orphan_flood():
+    # startActionId names an action that does not exist. Without special
+    # handling, every real action would be "unreachable" and flagged as an
+    # orphan; instead the analyzer reports the broken entry point once and
+    # suppresses the orphan flood.
+    flow = {
+        "id": "x",
+        "startActionId": "999",
+        "actions": [
+            {"actionId": "1", "actionTypeId": "0-4", "fields": {"content_id": "a"},
+             "connection": {"edgeType": "STANDARD", "nextActionId": "2"}},
+            {"actionId": "2", "actionTypeId": "0-4", "fields": {"content_id": "b"}},
+        ],
+    }
+    report = build_report(flow)
+    assert any(f.code == "START_NOT_FOUND" for f in report.findings)
+    assert report.orphans == []                                      # flood suppressed
+    assert not any(f.code == "ORPHAN_ACTION" for f in report.findings)
+    assert report.ok is False
+
+
+def test_missing_start_with_actions_is_flagged():
+    # No startActionId at all, but the flow has actions: still a broken entry
+    # point, so START_NOT_FOUND fires and orphans stay empty.
+    flow = {"id": "x", "actions": [
+        {"actionId": "1", "actionTypeId": "0-4", "fields": {"content_id": "a"}},
+    ]}
+    report = build_report(flow)
+    assert any(f.code == "START_NOT_FOUND" for f in report.findings)
+    assert report.orphans == []
+
+
 def test_empty_flow_is_safe():
     # No actions: no findings, ok is True, and format_report takes its
     # "(no structural issues found)" branch instead of listing anything.
