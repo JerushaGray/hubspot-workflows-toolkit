@@ -7,7 +7,7 @@ GOTO merge (6 -> 8). Each test below pins one analyzer behavior to one of those.
 import json
 import os
 
-from hsflow.analyzer import build_report, format_report
+from hsflow.analyzer import Codes, build_report, format_report
 
 HERE = os.path.dirname(__file__)
 SAMPLE = os.path.join(HERE, "..", "examples", "sample_flow.json")
@@ -30,7 +30,7 @@ def test_dangling_link_detected():
     report = build_report(load_sample())
     assert report.dangling == ["9999"]
     codes = {(f.code, f.action_id) for f in report.findings}
-    assert ("DANGLING_LINK", "10") in codes
+    assert (Codes.DANGLING_LINK, "10") in codes
 
 
 def test_dangling_link_reports_every_source():
@@ -56,7 +56,7 @@ def test_dangling_link_reports_every_source():
     }
     report = build_report(flow)
     assert report.dangling == ["99"]
-    sources = sorted(f.action_id for f in report.findings if f.code == "DANGLING_LINK")
+    sources = sorted(f.action_id for f in report.findings if f.code == Codes.DANGLING_LINK)
     assert sources == ["2", "3"]
 
 
@@ -64,7 +64,7 @@ def test_branch_without_default_is_flagged():
     # Branch 8 has two positive conditions and no default (a silent-drop risk);
     # branch 5 does have a default, so it must NOT be flagged.
     report = build_report(load_sample())
-    flagged = {f.action_id for f in report.findings if f.code == "BRANCH_NO_DEFAULT"}
+    flagged = {f.action_id for f in report.findings if f.code == Codes.BRANCH_NO_DEFAULT}
     assert "8" in flagged
     assert "5" not in flagged
 
@@ -124,7 +124,7 @@ def test_format_report_renders_summary_and_findings():
     text = format_report(build_report(load_sample()))
     assert "[SAMPLE] Welcome Nurture (synthetic)" in text
     assert "Findings: 1 error(s), 2 warning(s), 1 info" in text
-    assert "DANGLING_LINK [action 10]" in text
+    assert f"{Codes.DANGLING_LINK} [action 10]" in text
 
 
 def test_broken_start_reference_is_flagged_not_an_orphan_flood():
@@ -142,9 +142,9 @@ def test_broken_start_reference_is_flagged_not_an_orphan_flood():
         ],
     }
     report = build_report(flow)
-    assert any(f.code == "START_NOT_FOUND" for f in report.findings)
+    assert any(f.code == Codes.START_NOT_FOUND for f in report.findings)
     assert report.orphans == []                                      # flood suppressed
-    assert not any(f.code == "ORPHAN_ACTION" for f in report.findings)
+    assert not any(f.code == Codes.ORPHAN_ACTION for f in report.findings)
     assert report.ok is False
 
 
@@ -155,7 +155,7 @@ def test_missing_start_with_actions_is_flagged():
         {"actionId": "1", "actionTypeId": "0-4", "fields": {"content_id": "a"}},
     ]}
     report = build_report(flow)
-    assert any(f.code == "START_NOT_FOUND" for f in report.findings)
+    assert any(f.code == Codes.START_NOT_FOUND for f in report.findings)
     assert report.orphans == []
 
 

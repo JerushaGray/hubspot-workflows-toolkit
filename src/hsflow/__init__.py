@@ -10,7 +10,16 @@ Two independent halves:
 The analyzer never touches the network, so you can audit a saved flow JSON with
 no credentials at all.
 """
-from .analyzer import Finding, FlowReport, build_report, format_report
+from .analyzer import (
+    BranchInfo,
+    Codes,
+    DelayInfo,
+    Finding,
+    FlowReport,
+    GotoEdge,
+    build_report,
+    format_report,
+)
 from .client import (
     HubSpotAPIError,
     HubSpotAuthError,
@@ -37,6 +46,10 @@ __all__ = [
     "format_report",
     "FlowReport",
     "Finding",
+    "Codes",
+    "BranchInfo",
+    "DelayInfo",
+    "GotoEdge",
     "build_crosswalk",
     "format_crosswalk",
     "Crosswalk",

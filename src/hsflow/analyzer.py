@@ -19,7 +19,7 @@ flow) and it returns a :class:`FlowReport`.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Iterator, List, Optional
+from typing import Any, Dict, Iterator, List, Optional, Tuple, TypedDict
 
 from .models import (
     ACTION_TYPE_DELAY,
@@ -30,10 +30,39 @@ from .models import (
     humanize_delay_minutes,
 )
 
+# Severities are plain strings (not an Enum) so a FlowReport round-trips through
+# dataclasses.asdict + json.dumps with no custom encoder (see cli.py --json).
 SEVERITY_ERROR = "error"
 SEVERITY_WARNING = "warning"
 SEVERITY_INFO = "info"
 _SEVERITY_ORDER = {SEVERITY_ERROR: 0, SEVERITY_WARNING: 1, SEVERITY_INFO: 2}
+
+
+class Codes:
+    """Stable finding codes, so consumers reference these instead of literals."""
+
+    START_NOT_FOUND = "START_NOT_FOUND"
+    DANGLING_LINK = "DANGLING_LINK"
+    ORPHAN_ACTION = "ORPHAN_ACTION"
+    BRANCH_NO_DEFAULT = "BRANCH_NO_DEFAULT"
+    GOTO_EDGE = "GOTO_EDGE"
+
+
+class BranchInfo(TypedDict):
+    action_id: str
+    name: Optional[str]
+    branch_count: int
+    has_default: bool
+
+
+class DelayInfo(TypedDict):
+    action_id: str
+    minutes: Optional[int]
+    human: str
+
+
+# "from" is a reserved word, so GotoEdge needs the functional TypedDict form.
+GotoEdge = TypedDict("GotoEdge", {"from": str, "to": str})
 
 
 @dataclass
@@ -55,26 +84,26 @@ class FlowReport:
     is_enabled: Optional[bool]
     start_action_id: Optional[str]
     action_count: int
-    type_counts: dict
+    type_counts: Dict[str, int]
     defined_ids: List[str]
     referenced_ids: List[str]
     orphans: List[str]
     dangling: List[str]
     terminals: List[str]
-    gotos: List[dict]
-    branches: List[dict]
-    delays: List[dict]
+    gotos: List[GotoEdge]
+    branches: List[BranchInfo]
+    delays: List[DelayInfo]
     content_ids: List[str]
     list_ids: List[str]
     findings: List[Finding] = field(default_factory=list)
 
     @property
     def errors(self) -> List[Finding]:
-        return [f for f in self.findings if f.severity == SEVERITY_ERROR]
+        return [finding for finding in self.findings if finding.severity == SEVERITY_ERROR]
 
     @property
     def warnings(self) -> List[Finding]:
-        return [f for f in self.findings if f.severity == SEVERITY_WARNING]
+        return [finding for finding in self.findings if finding.severity == SEVERITY_WARNING]
 
     @property
     def ok(self) -> bool:
@@ -93,7 +122,7 @@ def _iter_dicts(obj: Any) -> Iterator[dict]:
             yield from _iter_dicts(value)
 
 
-def _edges(action: dict) -> Iterator[tuple]:
+def _edges(action: dict) -> Iterator[Tuple[str, str]]:
     """Yield (edge_type, target_id) for every outgoing connection in an action.
 
     Connections live at the top level (``connection``) and inside each
@@ -106,7 +135,8 @@ def _edges(action: dict) -> Iterator[tuple]:
             yield (d.get("edgeType", "STANDARD"), str(nxt))
 
 
-def _int_key(value: str):
+def _int_key(value: str) -> Tuple[int, Any]:
+    """Sort key that orders numeric-string ids as numbers, others lexically."""
     try:
         return (0, int(value))
     except (TypeError, ValueError):
@@ -122,13 +152,13 @@ def build_report(flow: dict) -> FlowReport:
     defined_ids = [str(a.get("actionId")) for a in actions if a.get("actionId") is not None]
     defined_set = set(defined_ids)
 
-    adjacency: dict = {}
+    adjacency: Dict[str, List[str]] = {}
     referenced: set = set()
-    gotos: List[dict] = []
+    gotos: List[GotoEdge] = []
     terminals: List[str] = []
-    type_counts: dict = {}
-    branches: List[dict] = []
-    delays: List[dict] = []
+    type_counts: Dict[str, int] = {}
+    branches: List[BranchInfo] = []
+    delays: List[DelayInfo] = []
     content_ids: List[str] = []
 
     for action in actions:
@@ -213,13 +243,13 @@ def build_report(flow: dict) -> FlowReport:
 
     findings: List[Finding] = []
     if start_problem:
-        findings.append(Finding(SEVERITY_ERROR, "START_NOT_FOUND", start_problem, None))
+        findings.append(Finding(SEVERITY_ERROR, Codes.START_NOT_FOUND, start_problem, None))
     for missing in dangling:
-        for src in sorted((aid for aid, t in adjacency.items() if missing in t), key=_int_key):
+        for src in sorted((aid for aid, targets in adjacency.items() if missing in targets), key=_int_key):
             findings.append(
                 Finding(
                     SEVERITY_ERROR,
-                    "DANGLING_LINK",
+                    Codes.DANGLING_LINK,
                     f"points to action {missing}, which does not exist (broken link).",
                     src,
                 )
@@ -228,38 +258,39 @@ def build_report(flow: dict) -> FlowReport:
         findings.append(
             Finding(
                 SEVERITY_WARNING,
-                "ORPHAN_ACTION",
+                Codes.ORPHAN_ACTION,
                 "defined but unreachable from the start action (dead step).",
                 orphan,
             )
         )
-    for b in branches:
-        if not b["has_default"]:
+    for branch in branches:
+        if not branch["has_default"]:
             findings.append(
                 Finding(
                     SEVERITY_WARNING,
-                    "BRANCH_NO_DEFAULT",
-                    f"LIST_BRANCH with {b['branch_count']} branch(es) and no default: "
+                    Codes.BRANCH_NO_DEFAULT,
+                    f"LIST_BRANCH with {branch['branch_count']} branch(es) and no default: "
                     "contacts matching none will silently exit unless the branch "
                     "conditions fully partition the audience (e.g. IN_LIST + "
                     "NOT_IN_LIST on the same list). Verify coverage.",
-                    b["action_id"],
+                    branch["action_id"],
                 )
             )
-    for g in gotos:
+    for goto in gotos:
         findings.append(
             Finding(
                 SEVERITY_INFO,
-                "GOTO_EDGE",
-                f"GOTO -> action {g['to']} (merge/loop); confirm any loop can terminate.",
-                g["from"],
+                Codes.GOTO_EDGE,
+                f"GOTO -> action {goto['to']} (merge/loop); confirm any loop can terminate.",
+                goto["from"],
             )
         )
 
     findings.sort(key=lambda f: (_SEVERITY_ORDER.get(f.severity, 9), f.code, _int_key(f.action_id or "")))
 
+    flow_id = flow.get("id")
     return FlowReport(
-        flow_id=str(flow["id"]) if flow.get("id") is not None else None,
+        flow_id=str(flow_id) if flow_id is not None else None,
         name=flow.get("name"),
         is_enabled=flow.get("isEnabled"),
         start_action_id=start,
@@ -285,28 +316,28 @@ def format_report(report: FlowReport) -> str:
     lines.append(f"Flow: {report.name or '(unnamed)'}  (id={report.flow_id}, enabled={report.is_enabled})")
     lines.append(f"Start action: {report.start_action_id}   Actions: {report.action_count}")
     if report.type_counts:
-        counts = ", ".join(f"{k}={v}" for k, v in sorted(report.type_counts.items()))
+        counts = ", ".join(f"{name}={n}" for name, n in sorted(report.type_counts.items()))
         lines.append(f"Action types: {counts}")
     if report.delays:
-        ds = ", ".join(f"{d['action_id']}:{d['human']}" for d in report.delays)
+        ds = ", ".join(f"{delay['action_id']}:{delay['human']}" for delay in report.delays)
         lines.append(f"Delays: {ds}")
     if report.branches:
-        no_default = sum(1 for b in report.branches if not b["has_default"])
+        no_default = sum(1 for branch in report.branches if not branch["has_default"])
         lines.append(f"Branches: {len(report.branches)} ({no_default} without a default)")
     lines.append(f"Emails sent: {len(report.content_ids)}  content_ids={report.content_ids}")
     if report.list_ids:
         lines.append(f"Lists referenced: {report.list_ids}")
     lines.append(f"Terminals: {report.terminals}")
     if report.gotos:
-        lines.append("GOTO edges: " + ", ".join(f"{g['from']}->{g['to']}" for g in report.gotos))
+        lines.append("GOTO edges: " + ", ".join(f"{goto['from']}->{goto['to']}" for goto in report.gotos))
 
     n_err, n_warn = len(report.errors), len(report.warnings)
     n_info = len(report.findings) - n_err - n_warn
     lines.append("")
     lines.append(f"Findings: {n_err} error(s), {n_warn} warning(s), {n_info} info")
     if report.findings:
-        for f in report.findings:
-            lines.append(f"  {f}")
+        for finding in report.findings:
+            lines.append(f"  {finding}")
     else:
         lines.append("  (no structural issues found)")
     return "\n".join(lines)
