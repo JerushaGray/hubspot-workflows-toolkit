@@ -27,6 +27,9 @@ from .analyzer import FlowReport, build_report
 from .client import HubSpotAPIError, WorkflowsClient
 
 
+# total=False on these *Info dicts: a resolved asset carries its fields
+# (name/subject/state, or name/size/...), while a failed lookup carries only
+# "error", so every key is optional.
 class EmailInfo(TypedDict, total=False):
     name: Optional[str]
     subject: Optional[str]
@@ -92,6 +95,8 @@ def _summarize_list(data: dict) -> ListInfo:
 
 
 def _branch_labels(flow: dict) -> Dict[str, BranchLabel]:
+    # Read the flow directly: the analyzer's report.branches carries counts and
+    # has_default, not the per-path branchNames / defaultBranchName needed here.
     out: Dict[str, BranchLabel] = {}
     for action in flow.get("actions") or []:
         if action.get("type") == "LIST_BRANCH":
@@ -125,6 +130,8 @@ def build_crosswalk(
         try:
             emails[cid] = _summarize_email(client.get_email(cid))
         except HubSpotAPIError as exc:
+            # Per-asset failure: record and keep going. A HubSpotConnectionError
+            # is intentionally NOT caught here, so a systemic outage propagates.
             emails[cid] = {"error": f"HTTP {exc.status_code}"}
 
     lists: Dict[str, ListInfo] = {}
@@ -173,6 +180,7 @@ def format_crosswalk(cw: Crosswalk, *, markdown: bool = False) -> str:
         return _format_markdown(cw)
     lines: List[str] = [f"Crosswalk: {cw.flow_name or '(unnamed)'} (id={cw.flow_id})", ""]
     lines.append("Emails (content_id -> name | subject | state)")
+    # `or ["  (none)"]`: substitute a placeholder line when a section is empty.
     lines += [_email_line(cid, info) for cid, info in cw.emails.items()] or ["  (none)"]
     lines.append("")
     lines.append("Lists (listId -> name | size | source)")
