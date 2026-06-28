@@ -1,0 +1,30 @@
+# --- secrets: never commit a HubSpot token ---
+.env
+*.token
+.hubspot_token
+secrets/
+
+# --- pulled portal data (may contain real ids / PII) ---
+flow_defs/
+list_defs/
+*.flow.json
+
+# --- python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# --- editors / os ---
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

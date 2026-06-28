@@ -1,0 +1,112 @@
+{
+  "id": "100200300",
+  "flowType": "WORKFLOW",
+  "name": "[SAMPLE] Welcome Nurture (synthetic)",
+  "isEnabled": true,
+  "startActionId": "1",
+  "nextAvailableActionId": "12",
+  "_note": "Synthetic example for hsflow. All ids are made up. It deliberately contains an orphan action (11), a dangling link (10 -> 9999), a branch with no default (8), and a GOTO merge (6 -> 8) so `hsflow analyze` produces real findings.",
+  "actions": [
+    {
+      "actionId": "1",
+      "actionTypeId": "0-5",
+      "actionTypeVersion": 0,
+      "fields": { "property_name": "in_welcome_nurture", "value": { "staticValue": "true" } },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "2" }
+    },
+    {
+      "actionId": "2",
+      "actionTypeId": "0-1",
+      "fields": { "delta": "1440", "time_unit": "MINUTES" },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "3" }
+    },
+    {
+      "actionId": "3",
+      "actionTypeId": "0-4",
+      "fields": { "content_id": "100001", "subject": "Welcome aboard" },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "4" }
+    },
+    {
+      "actionId": "4",
+      "actionTypeId": "0-5",
+      "fields": { "property_name": "last_email_sent_date", "value": { "timestampType": "EXECUTION_TIME" } },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "5" }
+    },
+    {
+      "actionId": "5",
+      "type": "LIST_BRANCH",
+      "listBranches": [
+        {
+          "branchName": "Engaged in last 30 days",
+          "filterBranch": {
+            "filterBranchType": "OR",
+            "filters": [{ "filterType": "IN_LIST", "listId": "5001", "operator": "IN_LIST" }]
+          },
+          "connection": { "edgeType": "STANDARD", "nextActionId": "6" }
+        }
+      ],
+      "defaultBranchName": "Not engaged",
+      "defaultBranch": { "connection": { "edgeType": "STANDARD", "nextActionId": "7" } }
+    },
+    {
+      "actionId": "6",
+      "actionTypeId": "0-4",
+      "fields": { "content_id": "100002", "subject": "Glad you are active" },
+      "connection": { "edgeType": "GOTO", "nextActionId": "8" }
+    },
+    {
+      "actionId": "7",
+      "actionTypeId": "0-4",
+      "fields": { "content_id": "100003", "subject": "We miss you" },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "8" }
+    },
+    {
+      "actionId": "8",
+      "type": "LIST_BRANCH",
+      "listBranches": [
+        {
+          "branchName": "Has Package A",
+          "filterBranch": {
+            "filterBranchType": "OR",
+            "filters": [{ "filterType": "IN_LIST", "listId": "5002", "operator": "IN_LIST" }]
+          },
+          "connection": { "edgeType": "STANDARD", "nextActionId": "9" }
+        },
+        {
+          "branchName": "Has Package B",
+          "filterBranch": {
+            "filterBranchType": "OR",
+            "filters": [{ "filterType": "IN_LIST", "listId": "5003", "operator": "IN_LIST" }]
+          },
+          "connection": { "edgeType": "STANDARD", "nextActionId": "10" }
+        }
+      ]
+    },
+    {
+      "actionId": "9",
+      "actionTypeId": "0-4",
+      "fields": { "content_id": "100004", "subject": "Package A tips" }
+    },
+    {
+      "actionId": "10",
+      "actionTypeId": "0-1",
+      "fields": { "delta": "4320", "time_unit": "MINUTES" },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "9999" }
+    },
+    {
+      "actionId": "11",
+      "actionTypeId": "0-4",
+      "fields": { "content_id": "100005", "subject": "Orphaned send" },
+      "connection": { "edgeType": "STANDARD", "nextActionId": "9" }
+    }
+  ],
+  "enrollmentCriteria": {
+    "type": "LIST_BASED",
+    "shouldReEnroll": false,
+    "unEnrollObjectsNotMeetingCriteria": false,
+    "listMembershipFilterBranches": []
+  },
+  "suppressionListIds": [],
+  "timeWindows": [],
+  "blockedDates": []
+}
