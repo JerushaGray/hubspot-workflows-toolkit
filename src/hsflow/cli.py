@@ -22,6 +22,8 @@ from typing import List, Optional
 
 from . import __version__
 from .analyzer import build_report, format_report
+# Safe to import without `requests` installed: client.py only needs requests to
+# *construct* a client, so the offline commands (analyze, decode) work without it.
 from .client import HubSpotAPIError, HubSpotAuthError, WorkflowsClient
 from .crosswalk import build_crosswalk, format_crosswalk
 from .mermaid import to_mermaid
@@ -40,7 +42,7 @@ def _save_json(data: dict, path: str) -> None:
     print(f"Saved -> {path}")
 
 
-def _cmd_analyze(args) -> int:
+def _cmd_analyze(args: argparse.Namespace) -> int:
     flow = _load_json(args.path)
     if args.mermaid:
         print(to_mermaid(flow))
@@ -53,17 +55,17 @@ def _cmd_analyze(args) -> int:
     return 1 if report.errors else 0  # non-zero when defects are found (CI-friendly)
 
 
-def _cmd_decode(args) -> int:
-    tid = args.action_type_id
-    print(f"{tid}: {action_type_label(tid)} - {action_type_description(tid)}")
+def _cmd_decode(args: argparse.Namespace) -> int:
+    type_id = args.action_type_id
+    print(f"{type_id}: {action_type_label(type_id)} - {action_type_description(type_id)}")
     return 0
 
 
-def _make_client(args) -> WorkflowsClient:
+def _make_client(args: argparse.Namespace) -> WorkflowsClient:
     return WorkflowsClient(token=args.token, token_file=args.token_file)
 
 
-def _cmd_crosswalk(args) -> int:
+def _cmd_crosswalk(args: argparse.Namespace) -> int:
     flow = _load_json(args.path)
     crosswalk = build_crosswalk(flow, _make_client(args))
     if args.json:
@@ -73,13 +75,13 @@ def _cmd_crosswalk(args) -> int:
     return 0
 
 
-def _cmd_pull_flow(args) -> int:
+def _cmd_pull_flow(args: argparse.Namespace) -> int:
     flow = _make_client(args).get_flow(args.flow_id)
     _save_json(flow, args.out or f"flow_{args.flow_id}.json")
     return 0
 
 
-def _cmd_pull_list(args) -> int:
+def _cmd_pull_list(args: argparse.Namespace) -> int:
     data = _make_client(args).get_list(args.list_id)
     _save_json(data, args.out or f"list_{args.list_id}.json")
     return 0
@@ -96,6 +98,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Client and static analyzer for the HubSpot Workflows v4 API.",
     )
     parser.add_argument("--version", action="version", version=f"hsflow {__version__}")
+    # required=True so a bare `hsflow` prints usage instead of failing later with
+    # an AttributeError on the (then unset) args.func.
     sub = parser.add_subparsers(dest="command", required=True)
 
     p_analyze = sub.add_parser("analyze", help="analyze a saved flow JSON for structural defects")
@@ -137,7 +141,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     try:
         return args.func(args)
     except (OSError, json.JSONDecodeError, HubSpotAuthError, HubSpotAPIError) as exc:
-        # Expected, user-facing failures get a clean message, not a traceback.
+        # Turn the expected, user-facing failures (bad path, malformed JSON,
+        # missing token, API error) into a clean message. Genuine bugs are left
+        # to raise with their traceback; argparse handles usage errors itself
+        # (SystemExit) before we reach here.
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
