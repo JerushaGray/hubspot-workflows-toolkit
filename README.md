@@ -42,7 +42,10 @@ error log simply **isn't in the public API** (see [docs](docs/workflows-v4-refer
   - `GOTO_EDGE`: merges and loops to follow and confirm they terminate
   - plus an action-type breakdown, delay inventory (humanized), and the email
     and list ids the flow references.
-- **CLI** with `analyze`, `decode`, `pull-flow`, and `pull-list`.
+- **Crosswalk resolver** that turns those raw ids into labels: `content_id` to
+  email name/subject, `listId` to list name/size, and each branch's path names.
+  Deleted or inaccessible assets are flagged, not silently skipped.
+- **CLI** with `analyze`, `decode`, `crosswalk`, `pull-flow`, and `pull-list`.
 - **No credentials needed to try it.** A synthetic sample flow ships in
   [`examples/`](examples/sample_flow.json).
 
@@ -94,6 +97,47 @@ hsflow analyze flow_123456789.json
 hsflow pull-list 4092                   # -> list_4092.json
 ```
 
+## Resolve ids to labels (crosswalk)
+
+`analyze` is offline, so it reports the raw ids a flow uses (`content_id`,
+`listId`). `crosswalk` resolves them to names through the API, which is what
+makes a finding reportable: "action 10 points at a deleted email" lands where
+"action 10 -> 9999" does not.
+
+```bash
+hsflow crosswalk flow_123456789.json          # text
+hsflow crosswalk flow_123456789.json --md     # Markdown crosswalk doc
+```
+
+```text
+Crosswalk: [NURTURE] Welcome (id=123456789)
+
+Emails (content_id -> name | subject | state)
+  100001  Welcome aboard  "Welcome!"  [PUBLISHED]
+  100005  (unresolved: HTTP 404 - deleted or no access)
+
+Lists (listId -> name | size | source)
+  5001  Engaged in last 30 days  size=12345  [crm/v3]
+
+Branches (action id -> paths [default])
+  8  Has Package A / Has Package B  [no default]
+```
+
+A lookup that 404s (a deleted or inaccessible asset) is recorded, not raised,
+since a send or stamp pointing at a deleted email is exactly what an audit wants
+to catch. In code:
+
+```python
+from hsflow import WorkflowsClient, build_crosswalk, format_crosswalk
+
+client = WorkflowsClient()
+flow = client.get_flow("123456789")
+cw = build_crosswalk(flow, client)
+
+print(format_crosswalk(cw, markdown=True))
+cw.unresolved          # ['email 100005']  (deleted or no access)
+```
+
 ## Library usage
 
 ```python
@@ -132,6 +176,7 @@ client or network access.
 | --- | --- | --- |
 | `hsflow analyze <flow.json> [--json]` | none | Audit a saved flow definition |
 | `hsflow decode <actionTypeId>` | none | Explain an action type id (e.g. `0-4`) |
+| `hsflow crosswalk <flow.json> [--md]` | token | Resolve a flow's email/list/branch ids to labels |
 | `hsflow pull-flow <id> [--out F]` | token | `GET /automation/v4/flows/{id}` to a file |
 | `hsflow pull-list <id> [--out F]` | token | `GET` a list def (v3, legacy fallback) to a file |
 

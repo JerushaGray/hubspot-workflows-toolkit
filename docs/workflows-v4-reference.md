@@ -107,7 +107,7 @@ definition before trusting what a branch targets.
 - **Lists: try v3 first, then legacy v1.** A modern list id and its legacy id can
   differ; `/crm/v3/lists/{id}` 404s on a legacy-only id, so fall back to
   `/contacts/v1/lists/{id}`.
-- **The runtime action-error / "review automation issues" history is _not_ in the
+- **The runtime action-error / "review automation issues" history is *not* in the
   public API.** Those are internal endpoints requiring cookie auth; the public
   `/automation/v4/flows/{id}/...` log paths return 404. Reconstruct send outcomes
   from `/marketing/v3/emails/statistics/list` (sent / suppressed / bounced /
@@ -115,7 +115,7 @@ definition before trusting what a branch targets.
 - **`defaultBranchName` exists even when `defaultBranch` doesn't**, so a naive
   text search for "defaultBranch" over-counts. Check the actual `defaultBranch`
   key.
-- **PowerShell writes UTF-8 _with BOM_.** If you pull flows with `ConvertTo-Json`
+- **PowerShell writes UTF-8 *with BOM*.** If you pull flows with `ConvertTo-Json`
   and read them back elsewhere, open with a BOM-tolerant decoder (`utf-8-sig`).
 
 ## A repeatable audit, end to end
@@ -138,5 +138,6 @@ definition before trusting what a branch targets.
    inferences, and confirm impact (a stale flag nothing reads is hygiene, not a
    live bug) before rating severity.
 
-`hsflow` automates steps 2 and 3 and the structural half of step 5; the rest is
-judgment applied to what it surfaces.
+`hsflow` automates steps 2 to 4 (`analyze` covers decoding and the graph;
+`crosswalk` resolves ids to labels) and the structural half of step 5; the rest
+is judgment applied to what it surfaces.

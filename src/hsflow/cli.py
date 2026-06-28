@@ -1,12 +1,13 @@
 """Command-line interface: ``hsflow <command>``.
 
-    hsflow analyze <flow.json> [--json]   analyze a saved flow definition
-    hsflow decode <actionTypeId>          explain an action type id
-    hsflow pull-flow <id> [--out F]       GET the flow and save it  (needs token)
-    hsflow pull-list <id> [--out F]       GET a list and save it    (needs token)
+    hsflow analyze <flow.json> [--json]      analyze a saved flow definition
+    hsflow decode <actionTypeId>             explain an action type id
+    hsflow crosswalk <flow.json> [--md]      resolve a flow's ids to labels (needs token)
+    hsflow pull-flow <id> [--out F]          GET the flow and save it  (needs token)
+    hsflow pull-list <id> [--out F]          GET a list and save it    (needs token)
 
-``analyze`` and ``decode`` need no credentials. ``pull-*`` read a token from
---token, HUBSPOT_TOKEN, or --token-file.
+``analyze`` and ``decode`` need no credentials. ``crosswalk`` and ``pull-*`` read
+a token from --token, HUBSPOT_TOKEN, or --token-file.
 """
 from __future__ import annotations
 
@@ -54,6 +55,18 @@ def _make_client(args):
     return WorkflowsClient(token=args.token, token_file=args.token_file)
 
 
+def _cmd_crosswalk(args) -> int:
+    from .crosswalk import build_crosswalk, format_crosswalk
+
+    flow = _load_json(args.path)
+    cw = build_crosswalk(flow, _make_client(args))
+    if args.json:
+        print(json.dumps(dataclasses.asdict(cw), indent=2))
+    else:
+        print(format_crosswalk(cw, markdown=args.markdown))
+    return 0
+
+
 def _cmd_pull_flow(args) -> int:
     flow = _make_client(args).get_flow(args.flow_id)
     _save_json(flow, args.out or f"flow_{args.flow_id}.json")
@@ -87,6 +100,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_decode = sub.add_parser("decode", help="explain an action type id (e.g. 0-4)")
     p_decode.add_argument("action_type_id")
     p_decode.set_defaults(func=_cmd_decode)
+
+    p_cross = sub.add_parser("crosswalk", help="resolve a saved flow's email/list/branch ids to labels")
+    p_cross.add_argument("path", help="path to a flow definition JSON")
+    p_cross.add_argument("--markdown", "--md", action="store_true", dest="markdown",
+                         help="emit a Markdown crosswalk doc")
+    p_cross.add_argument("--json", action="store_true", help="emit the crosswalk as JSON")
+    _add_token_args(p_cross)
+    p_cross.set_defaults(func=_cmd_crosswalk)
 
     p_flow = sub.add_parser("pull-flow", help="GET /automation/v4/flows/{id} and save it")
     p_flow.add_argument("flow_id")
