@@ -8,6 +8,9 @@
 
 ``analyze`` and ``decode`` need no credentials. ``crosswalk`` and ``pull-*`` read
 a token from --token, HUBSPOT_TOKEN, or --token-file.
+
+Exit codes: 0 = clean, 1 = analyze found defects, 2 = the command could not run
+(bad path, malformed JSON, missing token, or an API error).
 """
 from __future__ import annotations
 
@@ -15,10 +18,13 @@ import argparse
 import dataclasses
 import json
 import sys
-from typing import Optional
+from typing import List, Optional
 
 from . import __version__
 from .analyzer import build_report, format_report
+from .client import HubSpotAPIError, HubSpotAuthError, WorkflowsClient
+from .crosswalk import build_crosswalk, format_crosswalk
+from .mermaid import to_mermaid
 from .models import action_type_description, action_type_label
 
 
@@ -37,8 +43,6 @@ def _save_json(data: dict, path: str) -> None:
 def _cmd_analyze(args) -> int:
     flow = _load_json(args.path)
     if args.mermaid:
-        from .mermaid import to_mermaid
-
         print(to_mermaid(flow))
         return 0
     report = build_report(flow)
@@ -46,7 +50,7 @@ def _cmd_analyze(args) -> int:
         print(json.dumps(dataclasses.asdict(report), indent=2))
     else:
         print(format_report(report))
-    return 1 if report.errors else 0  # non-zero on errors, handy in CI
+    return 1 if report.errors else 0  # non-zero when defects are found (CI-friendly)
 
 
 def _cmd_decode(args) -> int:
@@ -55,21 +59,17 @@ def _cmd_decode(args) -> int:
     return 0
 
 
-def _make_client(args):
-    from .client import WorkflowsClient
-
+def _make_client(args) -> WorkflowsClient:
     return WorkflowsClient(token=args.token, token_file=args.token_file)
 
 
 def _cmd_crosswalk(args) -> int:
-    from .crosswalk import build_crosswalk, format_crosswalk
-
     flow = _load_json(args.path)
-    cw = build_crosswalk(flow, _make_client(args))
+    crosswalk = build_crosswalk(flow, _make_client(args))
     if args.json:
-        print(json.dumps(dataclasses.asdict(cw), indent=2))
+        print(json.dumps(dataclasses.asdict(crosswalk), indent=2))
     else:
-        print(format_crosswalk(cw, markdown=args.markdown))
+        print(format_crosswalk(crosswalk, markdown=args.markdown))
     return 0
 
 
@@ -132,9 +132,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Optional[list] = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    return args.func(args)
+    try:
+        return args.func(args)
+    except (OSError, json.JSONDecodeError, HubSpotAuthError, HubSpotAPIError) as exc:
+        # Expected, user-facing failures get a clean message, not a traceback.
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
 
 
 if __name__ == "__main__":  # pragma: no cover
