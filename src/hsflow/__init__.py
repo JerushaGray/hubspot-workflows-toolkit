@@ -23,6 +23,8 @@ from .analyzer import (
 from .client import (
     HubSpotAPIError,
     HubSpotAuthError,
+    HubSpotConnectionError,
+    HubSpotError,
     WorkflowsClient,
     load_token,
 )
@@ -39,8 +41,10 @@ __version__ = "0.1.0"
 
 __all__ = [
     "WorkflowsClient",
+    "HubSpotError",
     "HubSpotAPIError",
     "HubSpotAuthError",
+    "HubSpotConnectionError",
     "load_token",
     "build_report",
     "format_report",

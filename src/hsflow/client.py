@@ -11,8 +11,10 @@ Wraps the handful of endpoints needed to pull and reason about workflows:
 Auth is a HubSpot private-app token ("pat-na1-..."). Never hard-code it: pass it
 explicitly, set ``HUBSPOT_TOKEN``, or point at a token file.
 
-``requests`` is imported lazily so the rest of the package (the analyzer) works
-with no third-party dependency installed.
+Error model: every failure raises a subclass of :class:`HubSpotError`, so a
+caller never has to know about ``requests``. ``requests`` itself is imported
+lazily, so the rest of the package (the analyzer) works with no third-party
+dependency installed.
 """
 from __future__ import annotations
 
@@ -27,19 +29,37 @@ except ImportError:  # pragma: no cover
 
 DEFAULT_BASE_URL = "https://api.hubapi.com"
 _RETRYABLE = {429, 500, 502, 503, 504}
+_MAX_BACKOFF = 30
 
 
-class HubSpotAuthError(RuntimeError):
+class HubSpotError(RuntimeError):
+    """Base class for every error this client raises."""
+
+
+class HubSpotAuthError(HubSpotError):
     """Raised when no token can be found."""
 
 
-class HubSpotAPIError(RuntimeError):
+class HubSpotAPIError(HubSpotError):
     """Raised for a non-retryable (or retry-exhausted) HTTP error response."""
 
     def __init__(self, status_code: int, message: str, url: str):
         super().__init__(f"HTTP {status_code} for {url}: {message}")
         self.status_code = status_code
         self.url = url
+
+
+class HubSpotConnectionError(HubSpotError):
+    """Raised when the request never received an HTTP response (transport failure)."""
+
+    def __init__(self, message: str, url: str):
+        super().__init__(message)
+        self.url = url
+
+
+def _backoff_seconds(attempt: int) -> float:
+    """Capped exponential backoff: 2, 4, 8, ... up to _MAX_BACKOFF seconds."""
+    return float(min(2 ** attempt, _MAX_BACKOFF))
 
 
 def to_iso8601(value: Union[str, datetime]) -> str:
@@ -114,14 +134,25 @@ class WorkflowsClient:
             }
         )
 
-    # -- core request with backoff on 429 / 5xx --
+    # -- core request: retry transport errors + 429/5xx, then surface a HubSpotError --
     def _get(self, path: str, *, params=None) -> dict:
         url = f"{self.base_url}{path}"
         attempt = 0
         while True:
-            resp = self._session.get(url, params=params, timeout=self.timeout)
+            try:
+                resp = self._session.get(url, params=params, timeout=self.timeout)
+            except requests.exceptions.RequestException as exc:
+                # No HTTP response at all (DNS, connection, timeout). Retry the
+                # transient failure, then wrap it so a caller never sees a raw
+                # requests exception.
+                if attempt < self.max_retries:
+                    attempt += 1
+                    self._sleep(_backoff_seconds(attempt))
+                    continue
+                raise HubSpotConnectionError(f"request to {url} failed: {exc}", url) from exc
+
             if resp.status_code < 400:
-                return resp.json()
+                return _parse_json(resp, url)
             if resp.status_code in _RETRYABLE and attempt < self.max_retries:
                 attempt += 1
                 self._sleep(self._retry_after(resp, attempt))
@@ -136,15 +167,15 @@ class WorkflowsClient:
                 return float(header)
             except ValueError:
                 pass
-        return float(min(2 ** attempt, 30))  # capped exponential backoff
+        return _backoff_seconds(attempt)
 
     # -- Workflows v4 --
-    def get_flow(self, flow_id) -> dict:
+    def get_flow(self, flow_id: Union[str, int]) -> dict:
         """GET /automation/v4/flows/{id}: the full workflow definition."""
         return self._get(f"/automation/v4/flows/{flow_id}")
 
     # -- Lists (v3 with legacy fallback) --
-    def get_list(self, list_id, *, include_filters: bool = True) -> dict:
+    def get_list(self, list_id: Union[str, int], *, include_filters: bool = True) -> dict:
         """GET a list definition, trying CRM v3 then falling back to legacy v1."""
         try:
             params = {"includeFilters": "true"} if include_filters else None
@@ -155,7 +186,7 @@ class WorkflowsClient:
             return self._get(f"/contacts/v1/lists/{list_id}")
 
     # -- Marketing emails --
-    def get_email(self, email_id) -> dict:
+    def get_email(self, email_id: Union[str, int]) -> dict:
         """GET /marketing/v3/emails/{id}. (A send action's content_id is this id.)"""
         return self._get(f"/marketing/v3/emails/{email_id}")
 
@@ -178,6 +209,14 @@ class WorkflowsClient:
             "emailIds": [str(e) for e in email_ids],
         }
         return self._get("/marketing/v3/emails/statistics/list", params=params)
+
+
+def _parse_json(resp, url: str) -> dict:
+    """Decode a success response, turning a non-JSON body into a HubSpotAPIError."""
+    try:
+        return resp.json()
+    except ValueError as exc:  # includes requests/json JSONDecodeError
+        raise HubSpotAPIError(resp.status_code, f"response was not valid JSON ({exc})", url) from exc
 
 
 def _short(resp, limit: int = 300) -> str:

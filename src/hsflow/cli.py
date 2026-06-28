@@ -24,7 +24,7 @@ from . import __version__
 from .analyzer import build_report, format_report
 # Safe to import without `requests` installed: client.py only needs requests to
 # *construct* a client, so the offline commands (analyze, decode) work without it.
-from .client import HubSpotAPIError, HubSpotAuthError, WorkflowsClient
+from .client import HubSpotError, WorkflowsClient
 from .crosswalk import build_crosswalk, format_crosswalk
 from .mermaid import to_mermaid
 from .models import action_type_description, action_type_label
@@ -140,11 +140,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return args.func(args)
-    except (OSError, json.JSONDecodeError, HubSpotAuthError, HubSpotAPIError) as exc:
-        # Turn the expected, user-facing failures (bad path, malformed JSON,
-        # missing token, API error) into a clean message. Genuine bugs are left
-        # to raise with their traceback; argparse handles usage errors itself
-        # (SystemExit) before we reach here.
+    except (OSError, json.JSONDecodeError, HubSpotError) as exc:
+        # Turn the expected, user-facing failures (bad path, malformed JSON, and
+        # any client error: missing token, API error, or a connection failure)
+        # into a clean message. Genuine bugs are left to raise with their
+        # traceback; argparse handles usage errors itself (SystemExit) earlier.
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
