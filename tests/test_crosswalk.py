@@ -1,7 +1,9 @@
 import json
 import os
 
-from hsflow.client import HubSpotAPIError
+import pytest
+
+from hsflow.client import HubSpotAPIError, HubSpotConnectionError
 from hsflow.crosswalk import build_crosswalk, format_crosswalk
 
 HERE = os.path.dirname(__file__)
@@ -58,6 +60,17 @@ def test_missing_email_recorded_not_raised():
     assert "email 100005" in cw.unresolved
 
 
+def test_connection_error_propagates_not_recorded():
+    # A 404 is per-asset (recorded); a connection failure is systemic, so it
+    # propagates rather than being masked as every asset being "unresolved".
+    class DownClient(FakeClient):
+        def get_email(self, email_id):
+            raise HubSpotConnectionError("network down", "/marketing/v3/emails/x")
+
+    with pytest.raises(HubSpotConnectionError):
+        build_crosswalk(load_sample(), DownClient())
+
+
 def test_resolves_list_crm_v3_shape():
     cw = build_crosswalk(load_sample(), FakeClient())
     assert cw.lists["5001"]["name"] == "Engaged in last 30 days"
@@ -95,8 +108,5 @@ def test_format_markdown_has_tables():
 
 
 def test_requires_client():
-    try:
+    with pytest.raises(ValueError):
         build_crosswalk(load_sample(), None)
-    except ValueError:
-        return
-    raise AssertionError("expected ValueError when client is None")

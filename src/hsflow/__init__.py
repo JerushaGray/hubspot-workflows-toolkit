@@ -28,7 +28,14 @@ from .client import (
     WorkflowsClient,
     load_token,
 )
-from .crosswalk import Crosswalk, build_crosswalk, format_crosswalk
+from .crosswalk import (
+    BranchLabel,
+    Crosswalk,
+    EmailInfo,
+    ListInfo,
+    build_crosswalk,
+    format_crosswalk,
+)
 from .mermaid import to_mermaid
 from .models import (
     ACTION_TYPES,
@@ -57,6 +64,9 @@ __all__ = [
     "build_crosswalk",
     "format_crosswalk",
     "Crosswalk",
+    "EmailInfo",
+    "ListInfo",
+    "BranchLabel",
     "to_mermaid",
     "ACTION_TYPES",
     "action_type_label",
