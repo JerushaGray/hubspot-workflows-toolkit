@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from typing import List, Optional
 
-from .analyzer import _edges, build_report
+from .analyzer import FlowReport, build_report, iter_edges
 from .models import (
     ACTION_TYPE_DELAY,
     ACTION_TYPE_LIST_BRANCH,
@@ -54,14 +54,14 @@ def _node_label(action: dict) -> str:
     return _san(f"{aid}: {label}{detail}")
 
 
-def to_mermaid(flow: dict, report: Optional[object] = None) -> str:
+def to_mermaid(flow: dict, report: Optional[FlowReport] = None) -> str:
     """Return Mermaid flowchart source (no ```mermaid fence) for a flow dict."""
     if report is None:
         report = build_report(flow)
     actions = flow.get("actions") or []
     dangling = sorted(set(report.dangling))
     orphans = sorted(set(report.orphans))
-    nodefault = sorted({b["action_id"] for b in report.branches if not b["has_default"]})
+    nodefault = sorted({branch["action_id"] for branch in report.branches if not branch["has_default"]})
     start = report.start_action_id
 
     lines: List[str] = ["flowchart TD"]
@@ -76,7 +76,7 @@ def to_mermaid(flow: dict, report: Optional[object] = None) -> str:
     # Edges.
     for action in actions:
         src = f"n{action.get('actionId')}"
-        for edge_type, target in _edges(action):
+        for edge_type, target in iter_edges(action):
             if edge_type == "GOTO":
                 lines.append(f"  {src} -. GOTO .-> n{target}")
             else:

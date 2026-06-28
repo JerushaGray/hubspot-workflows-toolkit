@@ -122,7 +122,7 @@ def _iter_dicts(obj: Any) -> Iterator[dict]:
             yield from _iter_dicts(value)
 
 
-def _edges(action: dict) -> Iterator[Tuple[str, str]]:
+def iter_edges(action: dict) -> Iterator[Tuple[str, str]]:
     """Yield (edge_type, target_id) for every outgoing connection in an action.
 
     Connections live at the top level (``connection``) and inside each
@@ -167,7 +167,7 @@ def build_report(flow: dict) -> FlowReport:
         label = action_type_label(kind)
         type_counts[label] = type_counts.get(label, 0) + 1
 
-        out = list(_edges(action))
+        out = list(iter_edges(action))
         adjacency[aid] = [target for _, target in out]
         for edge_type, target in out:
             referenced.add(target)

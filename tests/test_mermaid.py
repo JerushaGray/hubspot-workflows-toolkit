@@ -50,3 +50,18 @@ def test_every_action_has_a_node():
     out = to_mermaid(flow)
     for action in flow["actions"]:
         assert f'n{action["actionId"]}[' in out
+
+
+def test_label_special_chars_are_sanitized():
+    # Characters that would break a Mermaid ["..."] label are escaped:
+    # " -> ', [ -> (, ] -> ). The raw form must not leak into the output.
+    flow = {
+        "id": "x",
+        "startActionId": "1",
+        "actions": [
+            {"actionId": "1", "actionTypeId": "0-5", "fields": {"property_name": 'a"b[c]'}},
+        ],
+    }
+    out = to_mermaid(flow)
+    assert "a'b(c)" in out
+    assert 'a"b[c]' not in out
