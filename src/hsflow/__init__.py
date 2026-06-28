@@ -39,6 +39,7 @@ from .crosswalk import (
 from .mermaid import to_mermaid
 from .models import (
     ACTION_TYPES,
+    ActionType,
     action_type_description,
     action_type_label,
     humanize_delay_minutes,
@@ -69,6 +70,7 @@ __all__ = [
     "BranchLabel",
     "to_mermaid",
     "ACTION_TYPES",
+    "ActionType",
     "action_type_label",
     "action_type_description",
     "humanize_delay_minutes",

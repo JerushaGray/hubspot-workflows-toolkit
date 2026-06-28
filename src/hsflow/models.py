@@ -13,6 +13,8 @@ guessed at.
 """
 from __future__ import annotations
 
+from typing import NamedTuple
+
 # Action-type ids observed in marketing/email workflows.
 ACTION_TYPE_DELAY = "0-1"
 ACTION_TYPE_SEND_EMAIL = "0-4"
@@ -21,22 +23,28 @@ ACTION_TYPE_SET_PROPERTY = "0-5"
 # Branch steps use "type" (not "actionTypeId").
 ACTION_TYPE_LIST_BRANCH = "LIST_BRANCH"
 
-# id -> (short label, human description)
+
+class ActionType(NamedTuple):
+    label: str
+    description: str
+
+
+# action-type id -> (label, description)
 ACTION_TYPES = {
-    ACTION_TYPE_DELAY: (
+    ACTION_TYPE_DELAY: ActionType(
         "DELAY",
         "Wait. fields.delta is in MINUTES (not ms); days = delta / 1440.",
     ),
-    ACTION_TYPE_SEND_EMAIL: (
+    ACTION_TYPE_SEND_EMAIL: ActionType(
         "SEND_EMAIL",
         "Send a marketing email. fields.content_id = the marketing email id.",
     ),
-    ACTION_TYPE_SET_PROPERTY: (
+    ACTION_TYPE_SET_PROPERTY: ActionType(
         "SET_PROPERTY",
         "Set/stamp a property. fields.property_name + value "
         "(a staticValue, or an EXECUTION_TIME timestamp = 'stamp now').",
     ),
-    ACTION_TYPE_LIST_BRANCH: (
+    ACTION_TYPE_LIST_BRANCH: ActionType(
         "LIST_BRANCH",
         "If/then branch. listBranches[] of named conditions + optional defaultBranch.",
     ),
@@ -55,22 +63,26 @@ def action_kind(action: dict) -> str:
 
 def action_type_label(type_id: str) -> str:
     entry = ACTION_TYPES.get(type_id)
-    return entry[0] if entry else "UNKNOWN"
+    return entry.label if entry else "UNKNOWN"
 
 
 def action_type_description(type_id: str) -> str:
     entry = ACTION_TYPES.get(type_id)
-    return entry[1] if entry else f"Unrecognized action type {type_id!r}."
+    return entry.description if entry else f"Unrecognized action type {type_id!r}."
 
 
 def humanize_delay_minutes(minutes: int) -> str:
-    """Render a delay given in minutes: 4320 -> '3 days', 120 -> '2 hours'."""
-    if minutes is None or minutes <= 0:
+    """Render a delay given in minutes: 4320 -> '3 days', 120 -> '2 hours'.
+
+    Callers pass a real minute count; the analyzer maps an unparseable delay to
+    "unknown" itself rather than calling this with None.
+    """
+    if minutes <= 0:
         return "0 minutes"
     if minutes % MINUTES_PER_DAY == 0:
-        d = minutes // MINUTES_PER_DAY
-        return f"{d} day{'s' if d != 1 else ''}"
+        days = minutes // MINUTES_PER_DAY
+        return f"{days} day{'s' if days != 1 else ''}"
     if minutes % MINUTES_PER_HOUR == 0:
-        h = minutes // MINUTES_PER_HOUR
-        return f"{h} hour{'s' if h != 1 else ''}"
+        hours = minutes // MINUTES_PER_HOUR
+        return f"{hours} hour{'s' if hours != 1 else ''}"
     return f"{minutes} minute{'s' if minutes != 1 else ''}"
