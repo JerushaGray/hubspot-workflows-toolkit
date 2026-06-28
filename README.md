@@ -64,6 +64,9 @@ orphan (unreachable from the start), **yellow** = a branch with no default,
 **green** = the start. Dashed arrows are GOTO edges. The same defects come out of
 plain `hsflow analyze` as text (see Quickstart below).
 
+For why a finding like the yellow one matters in contacts and pipeline (not just
+as a lint nit), see [A finding in context](docs/field-example.md).
+
 ## Why it exists
 
 In a v4 flow, every step has an internal numeric `actionId` that **never appears
