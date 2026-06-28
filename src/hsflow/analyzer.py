@@ -12,7 +12,7 @@ Why this exists: action ids (1, 8, 137, ...) are internal and never shown in
 the editor, so a broken link or an unreachable step is invisible there. Auditing
 the JSON makes them obvious.
 
-The analyzer is pure and offline — pass it a dict (e.g. ``json.load`` of a saved
+The analyzer is pure and offline: pass it a dict (e.g. ``json.load`` of a saved
 flow) and it returns a :class:`FlowReport`.
 """
 from __future__ import annotations
@@ -177,7 +177,7 @@ def build_report(flow: dict) -> FlowReport:
         key=_int_key,
     )
 
-    # Reachability from the start action — the authoritative orphan check.
+    # Reachability from the start action: the authoritative orphan check.
     reachable: set = set()
     if start is not None:
         stack = [start]

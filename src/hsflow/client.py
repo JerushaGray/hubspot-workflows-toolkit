@@ -140,7 +140,7 @@ class WorkflowsClient:
 
     # -- Workflows v4 --
     def get_flow(self, flow_id) -> dict:
-        """GET /automation/v4/flows/{id} — the full workflow definition."""
+        """GET /automation/v4/flows/{id}: the full workflow definition."""
         return self._get(f"/automation/v4/flows/{flow_id}")
 
     # -- Lists (v3 with legacy fallback) --

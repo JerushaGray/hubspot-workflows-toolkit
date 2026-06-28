@@ -1,4 +1,4 @@
-"""Analyze the bundled synthetic flow — no HubSpot credentials needed.
+"""Analyze the bundled synthetic flow (no HubSpot credentials needed).
 
     python examples/analyze_sample.py
 

@@ -1,16 +1,16 @@
-# hsflow — HubSpot Workflows v4 toolkit
+# hsflow: a HubSpot Workflows v4 toolkit
 
 A small **Python client + static analyzer** for the HubSpot Workflows
 (Automation) **v4** API.
 
 Pull a workflow definition, then audit it for the structural defects the HubSpot
-UI hides behind its drag-and-drop canvas — **dangling links, unreachable
+UI hides behind its drag-and-drop canvas: **dangling links, unreachable
 ("orphan") steps, branches with no default path, and GOTO loops**. The analyzer
 is pure and offline, so you can audit a saved flow JSON with no credentials.
 
 > Built out of real marketing-operations work auditing large HubSpot portals
 > (workflow logic, deliverability, and A/B-test resolution). Every example in
-> this repo uses **synthetic** data — no portal ids, contacts, or real assets.
+> this repo uses **synthetic** data, with no portal ids, contacts, or real assets.
 
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -19,11 +19,11 @@ is pure and offline, so you can audit a saved flow JSON with no credentials.
 
 ## Why it exists
 
-In a v4 flow, every step has an internal `actionId` (`1`, `8`, `137`, …) that
-**never appears in the editor**. The canvas will happily show you a workflow
-whose branch points at a deleted step, or whose "Package B" path can never be
-reached — because the breakage only lives in the action graph, not the visuals.
-`hsflow` reads the JSON the API returns and makes those problems obvious.
+In a v4 flow, every step has an internal numeric `actionId` that **never appears
+in the editor**. The canvas will happily show you a workflow whose branch points
+at a deleted step, or whose "Package B" path can never be reached, because the
+breakage lives only in the action graph, not the visuals. `hsflow` reads the
+JSON the API returns and makes those problems obvious.
 
 It also encodes the field-level knowledge you only get by working with the API:
 `delta` is in **minutes** (not ms), the stats endpoint demands **ISO-8601**
@@ -33,17 +33,17 @@ error log simply **isn't in the public API** (see [docs](docs/workflows-v4-refer
 ## Features
 
 - **Typed client** for the endpoints that matter: workflow def, list def (with
-  legacy fallback), marketing email, and per-email statistics — with retry/
-  backoff on `429`/`5xx` and `Retry-After` support.
-- **Offline flow analyzer** — builds the action graph and reports:
-  - `DANGLING_LINK` — a step points at an action id that doesn't exist
-  - `ORPHAN_ACTION` — a defined step unreachable from the start (dead step)
-  - `BRANCH_NO_DEFAULT` — a branch that may silently drop unmatched contacts
-  - `GOTO_EDGE` — merges/loops to follow and confirm they terminate
+  legacy fallback), marketing email, and per-email statistics, with retry and
+  backoff on `429`/`5xx` plus `Retry-After` support.
+- **Offline flow analyzer** that builds the action graph and reports:
+  - `DANGLING_LINK`: a step points at an action id that doesn't exist
+  - `ORPHAN_ACTION`: a defined step unreachable from the start (dead step)
+  - `BRANCH_NO_DEFAULT`: a branch that may silently drop unmatched contacts
+  - `GOTO_EDGE`: merges and loops to follow and confirm they terminate
   - plus an action-type breakdown, delay inventory (humanized), and the email
     and list ids the flow references.
-- **CLI** — `analyze`, `decode`, `pull-flow`, `pull-list`.
-- **No credentials needed to try it** — a synthetic sample flow ships in
+- **CLI** with `analyze`, `decode`, `pull-flow`, and `pull-list`.
+- **No credentials needed to try it.** A synthetic sample flow ships in
   [`examples/`](examples/sample_flow.json).
 
 ## Install
@@ -54,13 +54,13 @@ cd hubspot-workflows-toolkit
 pip install -e .          # installs the `hsflow` command + the requests dep
 ```
 
-## Quickstart — no credentials
+## Quickstart (no credentials)
 
 ```bash
 hsflow analyze examples/sample_flow.json
 ```
 
-```
+```text
 Flow: [SAMPLE] Welcome Nurture (synthetic)  (id=100200300, enabled=True)
 Start action: 1   Actions: 11
 Action types: DELAY=2, LIST_BRANCH=2, SEND_EMAIL=5, SET_PROPERTY=2
@@ -129,23 +129,23 @@ client or network access.
 ## CLI reference
 
 | Command | Auth | Description |
-|---|---|---|
+| --- | --- | --- |
 | `hsflow analyze <flow.json> [--json]` | none | Audit a saved flow definition |
 | `hsflow decode <actionTypeId>` | none | Explain an action type id (e.g. `0-4`) |
-| `hsflow pull-flow <id> [--out F]` | token | `GET /automation/v4/flows/{id}` → file |
-| `hsflow pull-list <id> [--out F]` | token | `GET` a list def (v3, legacy fallback) → file |
+| `hsflow pull-flow <id> [--out F]` | token | `GET /automation/v4/flows/{id}` to a file |
+| `hsflow pull-list <id> [--out F]` | token | `GET` a list def (v3, legacy fallback) to a file |
 
 ## How a v4 flow is structured
 
 | `actionTypeId` / `type` | Meaning | Key fields |
-|---|---|---|
+| --- | --- | --- |
 | `0-1` | **DELAY** | `fields.delta` in **minutes** (days = `delta / 1440`) |
 | `0-4` | **SEND_EMAIL** | `fields.content_id` = the marketing email id |
 | `0-5` | **SET_PROPERTY** | `fields.property_name` + value (static or `EXECUTION_TIME` stamp) |
 | `LIST_BRANCH` (`type`) | **Branch** | `listBranches[]` of conditions + optional `defaultBranch` |
 
-Connections carry `edgeType`: `STANDARD` (normal next step) or `GOTO` (a jump to
-an existing action — used for merges and loops). The full catalog is larger;
+Connections carry `edgeType`: `STANDARD` (the normal next step) or `GOTO` (a jump
+to an existing action, used for merges and loops). The full catalog is larger, so
 unrecognized ids decode as `UNKNOWN` rather than being guessed at. See the
 [reference doc](docs/workflows-v4-reference.md) for the endpoints and gotchas.
 
@@ -153,7 +153,7 @@ unrecognized ids decode as `UNKNOWN` rather than being guessed at. See the
 
 This tool **never hard-codes or logs your token**. It is read from `--token`,
 `HUBSPOT_TOKEN`, or a token file at call time. The included `.gitignore` blocks
-`.env`, `*.token`, and any pulled `flow_defs/` / `list_defs/` so real portal
+`.env`, `*.token`, and any pulled `flow_defs/` and `list_defs/` so real portal
 data and secrets never get committed. Treat a private-app token like a password.
 
 ## Development
@@ -165,4 +165,4 @@ pytest
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
