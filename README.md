@@ -5,8 +5,9 @@ A small **Python client + static analyzer** for the HubSpot Workflows
 
 Pull a workflow definition, then audit it for the structural defects the HubSpot
 UI hides behind its drag-and-drop canvas: **dangling links, unreachable
-("orphan") steps, branches with no default path, and GOTO loops**. The analyzer
-is pure and offline, so you can audit a saved flow JSON with no credentials.
+("orphan") steps, branches with no default path, GOTO loops, and a broken start
+action**. The analyzer is pure and offline, so you can audit a saved flow JSON
+with no credentials.
 
 > Built out of real marketing-operations work auditing large HubSpot portals
 > (workflow logic, deliverability, and A/B-test resolution). Every example in
@@ -83,13 +84,15 @@ error log simply **isn't in the public API** (see [docs](docs/workflows-v4-refer
 ## Features
 
 - **Typed client** for the endpoints that matter: workflow def, list def (with
-  legacy fallback), marketing email, and per-email statistics, with retry and
-  backoff on `429`/`5xx` plus `Retry-After` support.
+  legacy fallback), marketing email, and per-email statistics. Retries `429`/`5xx`
+  and transient connection errors with backoff (honoring `Retry-After`), and
+  surfaces every failure as one `HubSpotError` type.
 - **Offline flow analyzer** that builds the action graph and reports:
   - `DANGLING_LINK`: a step points at an action id that doesn't exist
   - `ORPHAN_ACTION`: a defined step unreachable from the start (dead step)
   - `BRANCH_NO_DEFAULT`: a branch that may silently drop unmatched contacts
   - `GOTO_EDGE`: merges and loops to follow and confirm they terminate
+  - `START_NOT_FOUND`: the start action is missing or undefined (broken entry point)
   - plus an action-type breakdown, delay inventory (humanized), and the email
     and list ids the flow references.
 - **Crosswalk resolver** that turns those raw ids into labels: `content_id` to
@@ -131,8 +134,9 @@ Findings: 1 error(s), 2 warning(s), 1 info
   INFO    GOTO_EDGE [action 6]: GOTO -> action 8 (merge/loop); confirm any loop can terminate.
 ```
 
-`analyze` exits non-zero when there are errors, so it drops straight into CI.
-Add `--json` for a machine-readable report.
+`analyze` exits non-zero when there are errors, so it drops straight into CI
+(`0` = clean, `1` = defects found, `2` = could not run). Add `--json` for a
+machine-readable report.
 
 ## Pull and audit a real workflow
 

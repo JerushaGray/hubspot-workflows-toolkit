@@ -72,14 +72,17 @@ regardless of nesting, which is exactly what the analyzer does.
 ## The action graph
 
 Action ids are internal and **never shown in the editor**, so graph-level
-breakage is invisible in the UI. Two checks catch most of it:
+breakage is invisible in the UI. A few checks catch most of it:
 
 - **Dangling link**: a `nextActionId` with no matching action is a broken edge.
 - **Orphan / unreachable**: a defined action that can't be reached from
   `startActionId`. (The only legitimately "unreferenced" action is the start
   itself.)
+- **Broken start**: `startActionId` is missing or names an action that does not
+  exist, so nothing is reachable. Reported on its own rather than as every action
+  showing up as an orphan.
 
-`hsflow analyze` computes both, plus terminals (actions with no outgoing edge,
+`hsflow analyze` computes these, plus terminals (actions with no outgoing edge,
 the exits you must audit), the GOTO edges, and per-branch default coverage.
 
 ## Reading a branch correctly
